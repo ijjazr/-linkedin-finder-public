@@ -16,17 +16,6 @@ from serpapi import GoogleSearch
 
 load_dotenv()
 
-
-def get_secret(key, default=""):
-    """Read from Streamlit secrets (cloud) or .env (local)."""
-    try:
-        return st.secrets[key]
-    except (KeyError, FileNotFoundError):
-        return os.getenv(key, default)
-
-
-SERPAPI_KEY = get_secret("SERPAPI_KEY")
-
 SCOPES = [
     "https://www.googleapis.com/auth/spreadsheets",
     "https://www.googleapis.com/auth/drive",
@@ -70,7 +59,7 @@ def search_linkedin(titles, location, industry, seniority, keywords, exclude, ma
             params = {
                 "engine": "google",
                 "q": query,
-                "api_key": SERPAPI_KEY,
+                "api_key": st.session_state.get("serpapi_key", ""),
                 "num": 10,
                 "start": start,
             }
@@ -152,12 +141,15 @@ def export_to_sheet(rows, query, sheet_id, creds_info):
 st.set_page_config(page_title="LinkedIn Profile Finder", layout="wide")
 st.title("LinkedIn Profile Finder")
 
-with st.expander("Setup Guide — How to export to Google Sheets"):
+with st.expander("Setup Guide — Read this first"):
     st.markdown("""
-**Searching works instantly** — just enter job titles and click Search.
+### Step 1: SerpAPI Key (required for search)
+1. Go to [serpapi.com](https://serpapi.com/) and create a free account
+2. Copy your API key from the dashboard
+3. Paste it in the sidebar under **SerpAPI Key**
+4. Free tier gives **100 searches/month**
 
-**To export to your own Google Sheet**, one-time setup:
-
+### Step 2: Google Sheets Export (optional)
 1. Go to [Google Cloud Console](https://console.cloud.google.com/) and create a project
 2. Enable **Google Sheets API** and **Google Drive API** (APIs & Services > Library)
 3. Create a **Service Account** (IAM & Admin > Service Accounts)
@@ -167,7 +159,7 @@ with st.expander("Setup Guide — How to export to Google Sheets"):
 6. **Share the Sheet** with your service account email as **Editor**
 7. In the sidebar: paste your **Sheet ID** and upload your **credentials.json**
 
-No setup needed to **Download CSV** — that always works.
+**Download CSV** works without any setup.
 """)
 
 # Session state
@@ -183,6 +175,17 @@ if "creds_info" not in st.session_state:
 # ── Sidebar ──────────────────────────────────────────────────────────────────
 
 with st.sidebar:
+    st.header("API Key")
+    serpapi_key = st.text_input(
+        "SerpAPI Key",
+        value=st.session_state.get("serpapi_key", ""),
+        type="password",
+        help="Get a free key at serpapi.com (100 searches/month)",
+    )
+    if serpapi_key:
+        st.session_state.serpapi_key = serpapi_key
+
+    st.divider()
     st.header("Google Sheet Connection")
 
     sheet_id = st.text_input(
@@ -243,8 +246,8 @@ with col2:
 # ── Search ───────────────────────────────────────────────────────────────────
 
 if st.button("Search", type="primary"):
-    if not SERPAPI_KEY:
-        st.error("Search is not configured. Contact the app owner.")
+    if not st.session_state.get("serpapi_key"):
+        st.error("Enter your SerpAPI key in the sidebar. Get a free key at serpapi.com")
     elif not job_title:
         st.warning("Please enter at least a Job Title.")
     else:
